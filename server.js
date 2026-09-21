@@ -27,10 +27,15 @@ app.get('/api/test-db', async (req, res) => {
   try {
     const result = await pool.query('SELECT NOW() as waktu_db');
     res.json({ ok: true, pesan: 'Database OK!', waktu_db: result.rows[0].waktu_db });
-  } catch (err) {
-    res.status(500).json({ ok: false, pesan: err.message });
+    } catch (err) {
+    console.error('DB Error:', err);
+    res.status(500).json({ 
+      ok: false, 
+      pesan: err.message || err.code || 'Unknown DB error',
+      detail: err.code || null
+    });
   }
-});
+});                                   // ← TAMBAH INI
 
 app.listen(PORT, () => {
   console.log('✅ Server jalan di http://localhost:' + PORT);
