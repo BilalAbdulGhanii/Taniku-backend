@@ -315,33 +315,49 @@ function adminPersediaan(){
       '<td class="text-xs text-muted">'+esc(p.batch||'-')+'</td><td class="text-xs">'+kad+'</td><td>'+b+'</td></tr>'}).join('')+
     '</tbody></table></div></div>'}
 
-function adminPesanan(){
-  const list=DB.pesanan.slice().sort((a,b)=>new Date(b.tanggal)-new Date(a.tanggal));
-  return '<div class="page-head"><div><h1 class="page-title">Pesanan</h1><p class="page-sub">'+DB.pesanan.length+' total • '+DB.pesanan.filter(o=>o.status==='menunggu').length+' menunggu</p></div></div>'+
-    '<div class="card"><div class="table-wrap"><table class="tbl"><thead><tr><th>No.</th><th>Pembeli</th><th>Item</th><th>Total</th><th>Status</th><th style="text-align:right">Aksi</th></tr></thead><tbody>'+
-    (list.length?list.map(o=>'<tr><td><div class="font-bold">'+esc(o.nomor)+'</div><div class="text-xs text-muted">'+tglWaktu(o.tanggal)+'</div></td>'+
-      '<td>'+esc(o.pembeliNama)+'</td><td class="text-xs">'+o.item.length+' produk</td>'+
-      '<td class="font-bold text-g">'+rp(o.total)+'</td>'+
-      '<td><span class="badge '+(STATUS_PESANAN[o.status]?.badge||'badge-yellow')+'">'+(STATUS_PESANAN[o.status]?.label||o.status)+'</span></td>'+
-      '<td style="text-align:right"><div class="flex gap-1 justify-center">'+
-      '<button class="btn btn-outline btn-sm" data-aksi="detail-pesanan" data-id="'+o.id+'">Detail</button>'+
-      (o.status!=='selesai'&&o.status!=='dibatalkan'?'<button class="btn btn-primary btn-sm" data-aksi="ubah-status" data-id="'+o.id+'">Ubah</button>':'')+
-      '</div></td></tr>').join(''):'<tr><td colspan="6"><div class="empty"><h3>Belum Ada Pesanan</h3></div></td></tr>')+
-    '</tbody></table></div></div>'}
+async function adminPesanan(){
+  let list = [];
+  try {
+    const res = await Api.daftarPesanan();
+    list = (res || []).map(o => ({
+      id: o.id,
+      nomor: o.nomor,
+      pembeliId: o.pembeli_id,
+      pembeliNama: o.pembeli_nama,
+      item: Array.isArray(o.item) ? o.item : (typeof o.item === 'string' ? JSON.parse(o.item) : []),
+      subtotal: o.subtotal,
+      ongkir: o.ongkir,
+      diskon: o.diskon,
+      biayaLayanan: o.biaya_layanan,
+      total: o.total,
+      promoKode: o.promo_kode,
+      status: o.status,
+      statusPembayaran: o.status_pembayaran,
+      metodePembayaran: o.metode_pembayaran,
+      alamat: o.alamat,
+      catatan: o.catatan,
+      tanggal: o.tanggal
+    }));
+    list.sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
+    DB.pesanan = list;
+    simpanDB();
+  } catch (e) {
+    console.error('Gagal ambil pesanan:', e);
+    list = DB.pesanan || [];
+  }
 
-function adminMitra(){
-  return '<div class="page-head"><div><h1 class="page-title">Mitra Petani</h1><p class="page-sub">'+DB.mitra.length+' mitra terdaftar</p></div>'+
-    '<button class="btn btn-primary" data-aksi="tambah-mitra"><i data-lucide="plus"></i> Daftarkan Mitra</button></div>'+
-    '<div class="product-grid">'+DB.mitra.map(m=>{const w=m.status==='aktif'?'badge-green':m.status==='perlu-audit'?'badge-yellow':'badge-red';
-      const l=m.status==='aktif'?'Aktif':m.status==='perlu-audit'?'Perlu Audit':'Ditangguhkan';
-      return '<div class="card card-hover"><div class="card-body">'+
-      '<div class="flex items-start justify-between mb-3"><div style="width:52px;height:52px;border-radius:16px;background:var(--g3);display:grid;place-items:center;font-size:22px">🌾</div><span class="badge '+w+'">'+l+'</span></div>'+
-      '<div class="font-bold text-lg">'+esc(m.nama)+'</div><div class="text-sm text-muted">Ketua: '+esc(m.ketua)+'</div>'+
-      '<div class="text-xs text-muted mt-1">📍 '+esc(m.lokasi)+' • '+m.luas+' Ha</div><div class="divider"></div>'+
-      '<div class="flex justify-between text-xs"><span class="text-muted">Pasokan</span><span class="font-bold">'+angka(m.pasokan)+' kg</span></div>'+
-      '<div class="flex justify-between text-xs mt-1"><span class="text-muted">Mutu</span><span class="font-bold text-g">'+m.mutu+'% Grade A</span></div>'+
-      '</div></div>'}).join('')+'</div>'}
-
+  return '<div class="page-head"><div><h1 class="page-title">Pesanan</h1><p class="page-sub">' + list.length + ' total • ' + list.filter(o => o.status === 'menunggu' || o.status === 'menunggu_bayar').length + ' menunggu</p></div></div>' +
+    '<div class="card"><div class="table-wrap"><table class="tbl"><thead><tr><th>No.</th><th>Pembeli</th><th>Item</th><th>Total</th><th>Status</th><th style="text-align:right">Aksi</th></tr></thead><tbody>' +
+    (list.length ? list.map(o => '<tr><td><div class="font-bold">' + esc(o.nomor) + '</div><div class="text-xs text-muted">' + tglWaktu(o.tanggal) + '</div></td>' +
+      '<td>' + esc(o.pembeliNama) + '</td><td class="text-xs">' + (o.item ? o.item.length : 0) + ' produk</td>' +
+      '<td class="font-bold text-g">' + rp(o.total) + '</td>' +
+      '<td><span class="badge ' + (STATUS_PESANAN[o.status]?.badge || 'badge-yellow') + '">' + (STATUS_PESANAN[o.status]?.label || o.status) + '</span></td>' +
+      '<td style="text-align:right"><div class="flex gap-1 justify-center">' +
+      '<button class="btn btn-outline btn-sm" data-aksi="detail-pesanan" data-id="' + o.id + '">Detail</button>' +
+      (o.status !== 'selesai' && o.status !== 'dibatalkan' ? '<button class="btn btn-primary btn-sm" data-aksi="ubah-status" data-id="' + o.id + '">Ubah</button>' : '') +
+      '</div></td></tr>').join('') : '<tr><td colspan="6"><div class="empty"><h3>Belum Ada Pesanan</h3></div></td></tr>') +
+    '</tbody></table></div></div>';
+}
 function adminCuaca(){
   const s = SENSOR;
   window.__CHART_AFTER = () => {
@@ -391,33 +407,16 @@ function wc(l, n) {
 
 /* ===== NOTIF ITEM ===== */
 function notifItem(n){
-  const ik = {
-    pesanan: 'shopping-bag',
-    produk: 'package',
-    komplain: 'message-square',
-    cuaca: 'cloud-sun',
-    persediaan: 'boxes',
-    mitra: 'users'
-  };
-  const wr = {
-    pesanan: 'bg-blue',
-    produk: 'bg-green',
-    komplain: 'bg-yellow',
-    cuaca: 'bg-blue',
-    persediaan: 'bg-red',
-    mitra: 'bg-green'
-  };
-  return '<div class="notif-item' + (n.dibaca ? '' : ' unread') +
-    '" data-aksi="baca-notif" data-id="' + n.id + '">' +
-    '<div class="notif-icon ' + (wr[n.tipe] || 'bg-green') + '">' +
-    '<i data-lucide="' + (ik[n.tipe] || 'bell') + '"></i></div>' +
+  var ik = { pesanan:'shopping-bag', produk:'package', komplain:'message-square', cuaca:'cloud-sun', persediaan:'boxes', mitra:'users' };
+  var wr = { pesanan:'bg-blue', produk:'bg-green', komplain:'bg-yellow', cuaca:'bg-blue', persediaan:'bg-red', mitra:'bg-green' };
+  return '<div class="notif-item' + (n.dibaca ? '' : ' unread') + '" data-aksi="baca-notif" data-id="' + n.id + '">' +
+    '<div class="notif-icon ' + (wr[n.tipe] || 'bg-green') + '"><i data-lucide="' + (ik[n.tipe] || 'bell') + '"></i></div>' +
     '<div class="notif-body">' +
     '<div class="notif-title">' + esc(n.judul) + '</div>' +
     '<div class="notif-desc">' + esc(n.pesan) + '</div>' +
     '<div class="notif-time">' + relatif(n.waktu) + '</div>' +
     '</div></div>';
 }
-
 /*===== ADMIN NOTIF =====*/
 async function adminNotif(){
   let list = [];
@@ -706,15 +705,54 @@ function pembeliCheckout(){
     '<p class="text-xs text-muted text-center mt-3">Pembayaran aman & terenkripsi</p>'+
     '</div></div></div>'}
 
-function pembeliPesanan(sub){const list=DB.pesanan.filter(o=>o.pembeliId===SESI.id).sort((a,b)=>new Date(b.tanggal)-new Date(a.tanggal));
-  if(sub&&sub[1]){const o=list.find(x=>x.id===sub[1]||x.nomor===sub[1]);if(o)return detailPesanan(o)}
-  return '<div class="page-head"><div><h1 class="page-title">Pesanan Saya</h1><p class="page-sub">'+list.length+' total</p></div></div>'+
-    (list.length?'<div class="card"><div class="table-wrap"><table class="tbl"><thead><tr><th>No.</th><th>Tanggal</th><th>Item</th><th>Total</th><th>Status</th><th></th></tr></thead><tbody>'+
-    list.map(o=>'<tr><td class="font-bold">'+esc(o.nomor)+'</td><td class="text-xs text-muted">'+tglWaktu(o.tanggal)+'</td>'+
-    '<td class="text-xs">'+o.item.length+' produk</td><td class="font-bold text-g">'+rp(o.total)+'</td>'+
-    '<td><span class="badge '+(STATUS_PESANAN[o.status]?.badge||'badge-yellow')+'">'+(STATUS_PESANAN[o.status]?.label||o.status)+'</span></td>'+
-    '<td style="text-align:right"><a href="#/pembeli/pesanan/'+o.id+'" class="btn btn-outline btn-sm">Detail</a></td></tr>').join('')+
-    '</tbody></table></div></div>':'<div class="card"><div class="empty"><div class="empty-icon"><i data-lucide="inbox"></i></div><h3>Belum Ada Pesanan</h3><p>Mulai belanja sekarang!</p><a href="#/pembeli/katalog" class="btn btn-primary mt-4">Mulai Belanja</a></div></div>')}
+async function pembeliPesanan(sub){
+  let list = [];
+  try {
+    const res = await Api.pesananPembeli(SESI.id);
+    list = (res || []).map(o => ({
+      id: o.id,
+      nomor: o.nomor,
+      pembeliId: o.pembeli_id,
+      pembeliNama: o.pembeli_nama,
+      item: Array.isArray(o.item) ? o.item : (typeof o.item === 'string' ? JSON.parse(o.item) : []),
+      subtotal: o.subtotal,
+      ongkir: o.ongkir,
+      diskon: o.diskon,
+      biayaLayanan: o.biaya_layanan,
+      total: o.total,
+      promoKode: o.promo_kode,
+      status: o.status,
+      statusPembayaran: o.status_pembayaran,
+      metodePembayaran: o.metode_pembayaran,
+      metodeBayarKode: o.metode_bayar_kode || 'va',
+      alamat: o.alamat,
+      catatan: o.catatan,
+      tanggal: o.tanggal,
+      kurir: o.kurir,
+      resi: o.resi,
+      garisWaktu: o.garis_waktu ? (typeof o.garis_waktu === 'string' ? JSON.parse(o.garis_waktu) : o.garis_waktu) : []
+    }));
+    list.sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
+    DB.pesanan = list;
+    simpanDB();
+  } catch (e) {
+    console.error('Gagal ambil pesanan pembeli:', e);
+    list = (DB.pesanan || []).filter(o => o.pembeliId === SESI.id);
+  }
+
+  if (sub && sub[1]) {
+    const o = list.find(x => String(x.id) === String(sub[1]) || x.nomor === sub[1]);
+    if (o) return detailPesanan(o);
+  }
+
+  return '<div class="page-head"><div><h1 class="page-title">Pesanan Saya</h1><p class="page-sub">' + list.length + ' total</p></div></div>' +
+    (list.length ? '<div class="card"><div class="table-wrap"><table class="tbl"><thead><tr><th>No.</th><th>Tanggal</th><th>Item</th><th>Total</th><th>Status</th><th></th></tr></thead><tbody>' +
+    list.map(o => '<tr><td class="font-bold">' + esc(o.nomor) + '</td><td class="text-xs text-muted">' + tglWaktu(o.tanggal) + '</td>' +
+    '<td class="text-xs">' + (o.item ? o.item.length : 0) + ' produk</td><td class="font-bold text-g">' + rp(o.total) + '</td>' +
+    '<td><span class="badge ' + (STATUS_PESANAN[o.status]?.badge || 'badge-yellow') + '">' + (STATUS_PESANAN[o.status]?.label || o.status) + '</span></td>' +
+    '<td style="text-align:right"><a href="#/pembeli/pesanan/' + o.id + '" class="btn btn-outline btn-sm">Detail</a></td></tr>').join('') +
+    '</tbody></table></div></div>' : '<div class="card"><div class="empty"><div class="empty-icon"><i data-lucide="inbox"></i></div><h3>Belum Ada Pesanan</h3><p>Mulai belanja sekarang!</p><a href="#/pembeli/katalog" class="btn btn-primary mt-4">Mulai Belanja</a></div></div>');
+}
 
 function detailPesanan(o){
   return '<a href="#/pembeli/pesanan" class="btn btn-ghost btn-sm mb-4"><i data-lucide="arrow-left"></i> Kembali</a>'+
@@ -722,7 +760,7 @@ function detailPesanan(o){
     '<span class="badge '+(STATUS_PESANAN[o.status]?.badge||'badge-yellow')+'">'+(STATUS_PESANAN[o.status]?.label||o.status)+'</span></div>'+
     '<div class="two-col"><div>'+
     '<div class="card mb-4"><div class="card-head"><div class="card-title">Rincian Produk</div></div><div class="card-body" style="padding:8px 20px">'+
-    o.item.map(i=>'<div class="cart-item"><div class="cart-img" style="background:#DDEBDD">'+(i.emoji||'🌿')+'</div>'+
+    (o.item||[]).map(i=>'<div class="cart-item"><div class="cart-img" style="background:#DDEBDD">'+(i.emoji||'🌿')+'</div>'+
     '<div style="flex:1"><div class="font-bold">'+esc(i.nama)+'</div><div class="text-xs text-muted">'+rp(i.harga)+' × '+i.jumlah+'</div></div>'+
     '<div class="font-bold text-g">'+rp(i.harga*i.jumlah)+'</div></div>').join('')+'</div></div>'+
     '<div class="card mb-4"><div class="card-head"><div class="card-title">Lini Masa</div></div><div class="card-body"><div class="timeline">'+
@@ -744,14 +782,15 @@ function detailPesanan(o){
     '<div class="summary-row total"><span>Total</span><span>'+rp(o.total)+'</span></div>'+
     '<div class="mt-3 text-xs text-muted">Metode: '+esc(o.metodePembayaran||'-')+'</div>'+
     '<div class="mt-1 badge '+(o.statusPembayaran==='lunas'?'badge-green':'badge-yellow')+'">'+(o.statusPembayaran==='lunas'?'LUNAS':'Menunggu')+'</div>'+
-    (o.status==='menunggu_bayar' ?
+    ((o.status==='menunggu_bayar') ?
    '<div style="background:rgba(232,199,102,.25);border-radius:12px;padding:16px;margin-top:16px">'+
    '<div class="font-bold text-sm mb-2">⏳ Menunggu Pembayaran</div>'+
    '<p class="text-xs text-muted mb-3">Selesaikan pembayaran untuk memproses pesanan Anda.</p>'+
    '<button class="btn btn-primary btn-block" data-aksi="bayar-pesanan" data-id="'+o.id+'" data-metode="'+esc(o.metodeBayarKode||'va')+'">'+
    '<i data-lucide="credit-card"></i> Bayar Sekarang — '+rp(o.total)+'</button>'+
     '</div>' : '')+
-    '</div></div></div></div>'}
+    '</div></div></div></div>';
+}
 
 function pembeliCuaca(){
   const s = SENSOR;
@@ -1150,7 +1189,7 @@ function modalCOD(total,nomor){
 }
 
 function modalEditProfil(){
-  const u=DB.pengguna.find(x=>x.id===SESI.id)||SESI;
+  const u = SESI || {};
   bukaModal('<div class="modal"><div class="modal-head"><div><div class="modal-title">Ubah Profil</div>'+
     '<div class="modal-sub">Perbarui data akun Anda</div></div>'+
     '<button class="btn-icon" data-aksi="tutup-modal"><i data-lucide="x"></i></button></div>'+
@@ -1159,20 +1198,22 @@ function modalEditProfil(){
     '<div class="profile-avatar-big" id="pf-avatar">'+(u.foto?'<img src="'+u.foto+'">':esc(u.avatar||inisial(u.nama)))+'</div>'+
     '<label class="avatar-upload"><i data-lucide="camera"></i> Ganti Foto<input type="file" id="pf-file" accept="image/*" style="display:none"></label>'+
     '</div>'+
-    '<div class="form-group"><label class="label">Nama Lengkap</label><input class="input" id="pf-nama" value="'+esc(u.nama)+'"></div>'+
-    '<div class="form-group"><label class="label">Email</label><input class="input" id="pf-email" type="email" value="'+esc(u.email)+'"></div>'+
+    '<div class="form-group"><label class="label">Nama Lengkap</label><input class="input" id="pf-nama" value="'+esc(u.nama||'')+'"></div>'+
+    '<div class="form-group"><label class="label">Email</label><input class="input" id="pf-email" type="email" value="'+esc(u.email||'')+'"></div>'+
     '<div class="form-group"><label class="label">Nomor WhatsApp / HP</label><input class="input" id="pf-telepon" value="'+esc(u.telepon||'')+'" placeholder="0812-xxxx-xxxx"></div>'+
     '<div class="form-group"><label class="label">Alamat Lengkap</label><textarea class="input" id="pf-alamat" placeholder="Jl. Contoh No. 123, Kelurahan, Kecamatan, Kota">'+esc(u.alamat||'')+'</textarea></div>'+
     '</div>'+
     '<div class="modal-foot"><button class="btn btn-outline" data-aksi="tutup-modal">Batal</button>'+
     '<button class="btn btn-primary" data-aksi="simpan-profil"><i data-lucide="save"></i> Simpan</button></div></div>');
-  const fi=document.getElementById('pf-file');
-  if(fi) fi.addEventListener('change',e=>{
-    const f=e.target.files[0];if(!f)return;
-    const r=new FileReader();
-    r.onload=ev=>{const av=document.getElementById('pf-avatar');av.innerHTML='<img src="'+ev.target.result+'">';av.dataset.foto=ev.target.result;};
-    r.readAsDataURL(f);
-  });
+  setTimeout(()=>{
+    const fi=document.getElementById('pf-file');
+    if(fi) fi.addEventListener('change',e=>{
+      const f=e.target.files[0];if(!f)return;
+      const r=new FileReader();
+      r.onload=ev=>{const av=document.getElementById('pf-avatar');av.innerHTML='<img src="'+ev.target.result+'">';av.dataset.foto=ev.target.result;};
+      r.readAsDataURL(f);
+    });
+  },50);
 }
 
 function modalTambahProduk(){
@@ -1335,12 +1376,27 @@ async function aksiKonfirmasiBayar(){
     });
   }
 
-  DB.notifikasi.unshift({
-    id: uid('n'), peran: 'admin', tipe: 'pesanan', dibaca: false,
-    judul: 'Pembayaran Diterima',
-    pesan: 'Pesanan ' + o.nomor + ' telah dibayar via ' + o.metodePembayaran + '.',
-    waktu: new Date().toISOString(), tautan: '#/admin/pesanan'
-  });
+  // Kirim notif ke ADMIN (via backend)
+  try {
+    await Api.tambahNotifikasi({
+      peran: 'admin',
+      tipe: 'pesanan',
+      judul: 'Pembayaran Diterima',
+      pesan: 'Pesanan ' + o.nomor + ' telah dibayar via ' + o.metodePembayaran + '.',
+      tautan: '#/admin/pesanan'
+    });
+  } catch (e) { console.error('Gagal kirim notif admin:', e); }
+
+  // Kirim notif ke PEMBELI sendiri
+  try {
+    await Api.tambahNotifikasi({
+      peran: 'pembeli',
+      tipe: 'pesanan',
+      judul: 'Pembayaran Berhasil',
+      pesan: 'Pesanan ' + o.nomor + ' sebesar ' + rp(o.total) + ' telah dibayar. Menunggu konfirmasi admin.',
+      tautan: '#/pembeli/pesanan/' + o.id
+    });
+  } catch (e) { console.error('Gagal kirim notif pembeli:', e); }
 
   simpanDB();
   tutupModal();
@@ -1421,20 +1477,30 @@ function pasangEvent(){
       }
       case 'baca-notif': await aksiBacaNotif(id); break;
       case 'edit-profil': await modalEditProfil();break;
-      case 'simpan-profil':{
-        const u=DB.pengguna.find(x=>x.id===SESI.id);if(!u)break;
-        u.nama=document.getElementById('pf-nama').value.trim()||u.nama;
-        u.email=document.getElementById('pf-email').value.trim()||u.email;
-        u.telepon=document.getElementById('pf-telepon').value.trim();
-        u.alamat=document.getElementById('pf-alamat').value.trim();
-        u.avatar=inisial(u.nama);
-        const av=document.getElementById('pf-avatar');
-        if(av.dataset.foto) u.foto=av.dataset.foto;
-        SESI.nama=u.nama;SESI.email=u.email;SESI.telepon=u.telepon;
-        SESI.alamat=u.alamat;SESI.avatar=u.avatar;SESI.foto=u.foto;
-        simpanDB();simpanSesi(SESI);tutupModal();
-        toast('Profil berhasil diperbarui.','success');render();break;
-      }
+      case 'simpan-profil': {
+  const nama = (document.getElementById('pf-nama').value || '').trim();
+  const email = (document.getElementById('pf-email').value || '').trim();
+  const telepon = (document.getElementById('pf-telepon').value || '').trim();
+  const alamat = (document.getElementById('pf-alamat').value || '').trim();
+  const av = document.getElementById('pf-avatar');
+  const foto = av && av.dataset.foto ? av.dataset.foto : (SESI.foto || '');
+
+  if (!nama) { toast('Nama wajib diisi', 'error'); break; }
+  if (!email) { toast('Email wajib diisi', 'error'); break; }
+
+  SESI.nama = nama;
+  SESI.email = email;
+  SESI.telepon = telepon;
+  SESI.alamat = alamat;
+  SESI.avatar = inisial(nama);
+  if (foto) SESI.foto = foto;
+
+  simpanSesi(SESI);
+  tutupModal();
+  toast('Profil berhasil diperbarui.', 'success');
+  await render();
+  break;
+}
       case 'simpan-produk-baru':{
         const nama=document.getElementById('mp-nama').value.trim();
         if(!nama){toast('Nama produk wajib diisi.','error');break}
@@ -1488,20 +1554,42 @@ setTimeout(() => {
         if(document.getElementById('sm-kedaluwarsa').value) p.kedaluwarsa=document.getElementById('sm-kedaluwarsa').value;
         simpanDB();tutupModal();toast('Stok '+p.nama+' +'+j+'.','success');render();break;
       }
-      case 'simpan-status':{
-        const o=DB.pesanan.find(x=>x.id===id);if(!o)break;
-        const sb=document.getElementById('us-status').value;
-        const cat=document.getElementById('us-catatan').value||'Diperbarui Admin';
-        o.status=sb;
-        if(sb==='dikirim'){o.kurir=o.kurir||'Kang Dadang Suherman';o.resi=o.resi||'TNK-EXP-'+Math.floor(Math.random()*900000+100000)}
-        if(['dibayar','diproses','dikirim','selesai'].includes(sb))o.statusPembayaran='lunas';
-        o.garisWaktu=(o.garisWaktu||[]).map(g=>({...g,selesai:true,waktu:g.waktu==='—'?tglWaktu(new Date()):g.waktu}));
-        o.garisWaktu.push({tahap:'Status: '+STATUS_PESANAN[sb].label,waktu:tglWaktu(new Date()),selesai:true,catatan:cat});
-        DB.notifikasi.unshift({id:uid('n'),peran:'pembeli',tipe:'pesanan',dibaca:false,
-          judul:'Pesanan '+o.nomor+' Diperbarui',pesan:'Status: '+STATUS_PESANAN[sb].label+'.',
-          waktu:new Date().toISOString(),tautan:'#/pembeli/pesanan/'+o.id});
-        simpanDB();tutupModal();toast('Status diperbarui.','success');render();break;
-      }
+      case 'simpan-status': {
+  const o = DB.pesanan.find(x => x.id === id);
+  if (!o) break;
+  const sb = document.getElementById('us-status').value;
+  const cat = document.getElementById('us-catatan').value || 'Diperbarui Admin';
+  o.status = sb;
+  if (sb === 'dikirim') {
+    o.kurir = o.kurir || 'Kang Dadang Suherman';
+    o.resi = o.resi || 'TNK-EXP-' + Math.floor(Math.random() * 900000 + 100000);
+  }
+  if (['dibayar', 'diproses', 'dikirim', 'selesai'].includes(sb)) o.statusPembayaran = 'lunas';
+  o.garisWaktu = (o.garisWaktu || []).map(g => ({ ...g, selesai: true, waktu: g.waktu === '—' ? tglWaktu(new Date()) : g.waktu }));
+  o.garisWaktu.push({ tahap: 'Status: ' + STATUS_PESANAN[sb].label, waktu: tglWaktu(new Date()), selesai: true, catatan: cat });
+
+  // Update ke backend
+  try {
+    await Api.ubahStatusPesanan(o.id, sb, o.statusPembayaran);
+  } catch (e) { console.error('Gagal update status:', e); }
+
+  // Kirim notif ke PEMBELI
+  try {
+    await Api.tambahNotifikasi({
+      peran: 'pembeli',
+      tipe: 'pesanan',
+      judul: 'Pesanan ' + o.nomor + ' Diperbarui',
+      pesan: 'Status: ' + STATUS_PESANAN[sb].label + '.',
+      tautan: '#/pembeli/pesanan/' + o.id
+    });
+  } catch (e) { console.error('Gagal kirim notif pembeli:', e); }
+
+  simpanDB();
+  tutupModal();
+  toast('Status diperbarui.', 'success');
+  await render();
+  break;
+}
       case 'simpan-mitra':{
         const nama=document.getElementById('mm-nama').value.trim();
         if(!nama){toast('Nama Poktan wajib diisi.','error');break}
