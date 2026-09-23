@@ -389,6 +389,35 @@ function wc(l, n) {
   return '<div class="weather-cell"><span style="opacity:.85">' + l + '</span><b>' + n + '</b></div>';
 }
 
+/* ===== NOTIF ITEM ===== */
+function notifItem(n){
+  const ik = {
+    pesanan: 'shopping-bag',
+    produk: 'package',
+    komplain: 'message-square',
+    cuaca: 'cloud-sun',
+    persediaan: 'boxes',
+    mitra: 'users'
+  };
+  const wr = {
+    pesanan: 'bg-blue',
+    produk: 'bg-green',
+    komplain: 'bg-yellow',
+    cuaca: 'bg-blue',
+    persediaan: 'bg-red',
+    mitra: 'bg-green'
+  };
+  return '<div class="notif-item' + (n.dibaca ? '' : ' unread') +
+    '" data-aksi="baca-notif" data-id="' + n.id + '">' +
+    '<div class="notif-icon ' + (wr[n.tipe] || 'bg-green') + '">' +
+    '<i data-lucide="' + (ik[n.tipe] || 'bell') + '"></i></div>' +
+    '<div class="notif-body">' +
+    '<div class="notif-title">' + esc(n.judul) + '</div>' +
+    '<div class="notif-desc">' + esc(n.pesan) + '</div>' +
+    '<div class="notif-time">' + relatif(n.waktu) + '</div>' +
+    '</div></div>';
+}
+
 /*===== ADMIN NOTIF =====*/
 async function adminNotif(){
   let list = [];

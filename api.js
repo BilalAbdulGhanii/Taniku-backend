@@ -115,7 +115,7 @@ window.Api = {
       body: { status: status, statusPembayaran: statusPembayaran }
     });
   },
-  
+
   // Produk
   daftarProduk: function() { return api('/api/produk'); },
   tambahProduk: function(p) { return api('/api/produk', { metode: 'POST', body: p }); },
