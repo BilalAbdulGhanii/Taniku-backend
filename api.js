@@ -82,6 +82,40 @@ window.Api = {
     });
   },
 
+    // Notifikasi
+  daftarNotifikasi: function(peran) {
+    return api('/api/notifikasi/' + peran);
+  },
+  tambahNotifikasi: function(data) {
+    return api('/api/notifikasi', { metode: 'POST', body: data });
+  },
+  bacaNotifikasi: function(id) {
+    return api('/api/notifikasi/' + id + '/baca', { metode: 'PATCH' });
+  },
+  bacaSemuaNotifikasi: function(peran) {
+    return api('/api/notifikasi/baca-semua/' + peran, { metode: 'PATCH' });
+  },
+  hapusNotifikasi: function(id) {
+    return api('/api/notifikasi/' + id, { metode: 'DELETE' });
+  },
+
+  // Pesanan
+  daftarPesanan: function() {
+    return api('/api/pesanan');
+  },
+  pesananPembeli: function(id) {
+    return api('/api/pesanan/pembeli/' + id);
+  },
+  buatPesanan: function(data) {
+    return api('/api/pesanan', { metode: 'POST', body: data });
+  },
+  ubahStatusPesanan: function(id, status, statusPembayaran) {
+    return api('/api/pesanan/' + id + '/status', {
+      metode: 'PUT',
+      body: { status: status, statusPembayaran: statusPembayaran }
+    });
+  },
+  
   // Produk
   daftarProduk: function() { return api('/api/produk'); },
   tambahProduk: function(p) { return api('/api/produk', { metode: 'POST', body: p }); },
