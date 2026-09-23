@@ -25,7 +25,6 @@ router.get('/pembeli/:id', async (req, res) => {
 });
 
 // POST buat pesanan
-// POST buat pesanan
 router.post('/', async (req, res) => {
   try {
     const p = req.body;
@@ -39,18 +38,17 @@ router.post('/', async (req, res) => {
 
     const pesanan = result.rows[0];
 
-    // AUTO-CREATE NOTIFIKASI untuk admin
+    // Auto-create notifikasi untuk admin
     try {
       await pool.query(
         `INSERT INTO notifikasi (peran, tipe, judul, pesan, tautan)
          VALUES ($1, $2, $3, $4, $5)`,
         ['admin', 'pesanan', 'Pesanan Baru Masuk',
-         nomor + ' dari ' + p.pembeliNama + ' — Rp ' + (p.total || 0).toLocaleString('id-ID'),
+         nomor + ' dari ' + p.pembeliNama + ' - Rp ' + (p.total || 0).toLocaleString('id-ID'),
          '#/admin/pesanan']
       );
     } catch (notifErr) {
       console.error('Gagal bikin notif admin:', notifErr.message);
-      // Jangan fail seluruh request cuma karena notif gagal
     }
 
     res.json(pesanan);
@@ -58,3 +56,19 @@ router.post('/', async (req, res) => {
     res.status(500).json({ pesan: err.message });
   }
 });
+
+// PUT ubah status pesanan
+router.put('/:id/status', async (req, res) => {
+  try {
+    const { status, statusPembayaran } = req.body;
+    const result = await pool.query(
+      'UPDATE pesanan SET status=$1, status_pembayaran=COALESCE($2, status_pembayaran) WHERE id=$3 RETURNING *',
+      [status, statusPembayaran, req.params.id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ pesan: err.message });
+  }
+});
+
+module.exports = router;

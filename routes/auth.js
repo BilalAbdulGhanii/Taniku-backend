@@ -56,4 +56,4 @@ router.post('/daftar', async (req, res) => {
   }
 });
 
-module.exports = router;   // ← INI WAJIB ADA!
+module.exports = router;

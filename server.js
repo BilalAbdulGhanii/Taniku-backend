@@ -7,14 +7,11 @@ const pool = require('./db');
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-// ✅ CORS paling atas
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
-
-app.options('*', cors());
 
 app.use(express.json());
 
@@ -37,11 +34,7 @@ app.get('/api/test-db', async (req, res) => {
     res.json({ ok: true, pesan: 'Database OK!', waktu_db: result.rows[0].waktu_db });
   } catch (err) {
     console.error('DB Error:', err);
-    res.status(500).json({ 
-      ok: false, 
-      pesan: err.message || 'Unknown DB error',
-      detail: err.code || null
-    });
+    res.status(500).json({ ok: false, pesan: err.message });
   }
 });
 

@@ -810,7 +810,7 @@ async function muatCuaca() {
   }
 }
 
-/*===== PEMBELI NOTIF =====*/
+/* ===== PEMBELI NOTIF ===== */
 async function pembeliNotif(){
   let list = [];
   try {
@@ -931,6 +931,22 @@ async function aksiDaftar(f){
   }
 }
 
+async function aksiKeluar(){
+  SESI = null;
+  simpanSesi(null);
+  Api.setToken('');
+  DB = muatDB(); // reset data lokal biar bersih
+  HALAMAN_KINI = '#/masuk';
+  if (location.hash !== '#/masuk') {
+    location.hash = '#/masuk';
+    // hashchange bakal trigger rute() otomatis
+  } else {
+    // hash udah sama, hashchange nggak akan trigger — panggil manual
+    await rute();
+  }
+  toast('Anda telah keluar.', 'info');
+}
+
 /* Fungsi 1: Buat pesanan (status: menunggu_bayar) */
 async function aksiBuatPesanan(){
   const btn = document.querySelector('[data-aksi="buat-pesanan"]');
@@ -989,7 +1005,7 @@ async function aksiBuatPesanan(){
 }
 
 /* ==== AKSI KERANJANG ==== */
-function aksiTambahKeranjang(id){
+async function aksiTambahKeranjang(id){
   const p = DB.produk.find(x => x.id === id);
   if (!p) return;
   if (p.stok === 0) { toast('Stok habis.', 'error'); return; }
@@ -999,18 +1015,18 @@ function aksiTambahKeranjang(id){
   DB.keranjang[SESI.id][id] = sek + 1;
   simpanDB();
   toast(p.nama + ' ditambahkan ke keranjang.', 'success');
-  render();
+  await render();
 }
 
-function aksiHapusItem(id){
+async function aksiHapusItem(id){
   if (!DB.keranjang[SESI.id]) return;
   delete DB.keranjang[SESI.id][id];
   simpanDB();
   toast('Produk dihapus dari keranjang.', 'info');
-  render();
+  await render();
 }
 
-function aksiUbahQty(id, d){
+async function aksiUbahQty(id, d){
   if (!DB.keranjang[SESI.id]) return;
   const p = DB.produk.find(x => x.id === id);
   if (!p) return;
@@ -1023,14 +1039,14 @@ function aksiUbahQty(id, d){
 }
 
 /* ==== AKSI PRODUK ==== */
-function aksiHapusProduk(id){
+async function aksiHapusProduk(id){
   const p = DB.produk.find(x => x.id === id);
   if (!p) return;
   if (!confirm('Hapus produk "' + p.nama + '"?')) return;
   DB.produk = DB.produk.filter(x => x.id !== id);
   simpanDB();
   toast('Produk dihapus.', 'success');
-  render();
+  await render();
 }
 
 /* ==== AKSI NOTIFIKASI ==== */
@@ -1256,6 +1272,54 @@ function modalTambahMitra(){
     '<button class="btn btn-primary" data-aksi="simpan-mitra"><i data-lucide="save"></i> Daftarkan</button></div></div>');
 }
 
+/* ===== PEMBAYARAN ===== */
+function aksiBayarPesanan(pesananId, metodeBayar){
+  const o = DB.pesanan.find(x => String(x.id) === String(pesananId));
+  if (!o) { toast('Pesanan tidak ditemukan.', 'error'); return; }
+  const nomor = 'TNK-' + String(o.id).slice(-6).toUpperCase();
+  window.__BAYAR = { pesananId: o.id, total: o.total, metodeBayar, nomor };
+  if (metodeBayar === 'qris') modalQRIS(o.total, nomor);
+  else if (metodeBayar === 'va') modalVA(o.total, nomor);
+  else if (metodeBayar === 'cod') modalCOD(o.total, nomor);
+}
+
+async function aksiKonfirmasiBayar(){
+  const b = window.__BAYAR;
+  if (!b) { toast('Data pembayaran hilang.', 'error'); return; }
+  const o = DB.pesanan.find(x => String(x.id) === String(b.pesananId));
+  if (!o) { toast('Pesanan tidak ditemukan.', 'error'); return; }
+
+  o.status = 'dibayar';
+  o.statusPembayaran = 'lunas';
+  o.garisWaktu = (o.garisWaktu || []).map(g => {
+    if (g.tahap === 'Pembayaran Diterima') {
+      return { ...g, selesai: true, waktu: tglWaktu(new Date()), catatan: 'Terkonfirmasi' };
+    }
+    return g;
+  });
+  if (!o.garisWaktu.some(g => g.tahap === 'Pembayaran Diterima')) {
+    o.garisWaktu.push({
+      tahap: 'Pembayaran Diterima',
+      waktu: tglWaktu(new Date()),
+      selesai: true,
+      catatan: o.metodePembayaran
+    });
+  }
+
+  DB.notifikasi.unshift({
+    id: uid('n'), peran: 'admin', tipe: 'pesanan', dibaca: false,
+    judul: 'Pembayaran Diterima',
+    pesan: 'Pesanan ' + o.nomor + ' telah dibayar via ' + o.metodePembayaran + '.',
+    waktu: new Date().toISOString(), tautan: '#/admin/pesanan'
+  });
+
+  simpanDB();
+  tutupModal();
+  toast('Pembayaran berhasil dikonfirmasi!', 'success');
+  window.__BAYAR = null;
+  await render();
+}
+
 /* ===== EVENT ===== */
 function pasangEvent(){
   window.addEventListener('hashchange',rute);
@@ -1293,20 +1357,21 @@ function pasangEvent(){
     switch(a){
       case 'buka-menu': MENU_BUKA=true; await render(); break;
       case 'tutup-menu': MENU_BUKA=false; await render(); break;
-      case 'keluar':aksiKeluar();break;
-      case 'tutup-modal':tutupModal();break;
-      case 'detail-produk':location.hash=SESI.peran==='admin'?'#/admin/produk':'#/pembeli/produk/'+id;break;
-      case 'tambah-keranjang':aksiTambahKeranjang(id);break;
-      case 'hapus-item':aksiHapusItem(id);break;
-      case 'qty':aksiUbahQty(id,parseInt(el.dataset.delta,10));break;
+      case 'keluar': await aksiKeluar(); break;
+      case 'tutup-modal': tutupModal();break;
+      case 'detail-produk': location.hash = SESI.peran==='admin' ? '#/admin/produk' : '#/pembeli/produk/'+id; break;
+      // BARIS BARU
+      case 'tambah-keranjang': await aksiTambahKeranjang(id); break;
+      case 'hapus-item': await aksiHapusItem(id); break;
+      case 'qty': await aksiUbahQty(id, parseInt(el.dataset.delta, 10)); break;
+      case 'hapus-produk': await aksiHapusProduk(id); break;
       case 'filter-kategori': FILTER_KATEGORI=el.dataset.kategori; await render(); break;
-      case 'tambah-produk':modalTambahProduk();break;
-      case 'edit-produk':modalEditProduk(id);break;
-      case 'hapus-produk':aksiHapusProduk(id);break;
-      case 'stok-masuk':modalStokMasuk();break;
+      case 'tambah-produk':await modalTambahProduk();break;
+      case 'edit-produk': await modalEditProduk(id);break;
+      case 'stok-masuk':await modalStokMasuk();break;
       case 'detail-pesanan':modalDetailPesanan(id);break;
-      case 'ubah-status':modalUbahStatus(id);break;
-      case 'tambah-mitra':modalTambahMitra();break;
+      case 'ubah-status': await modalUbahStatus(id);break;
+      case 'tambah-mitra': await modalTambahMitra();break;
       case 'tandai-semua':
         try {
           await Api.bacaSemuaNotifikasi(SESI.peran);
@@ -1326,7 +1391,7 @@ function pasangEvent(){
         break;
       }
       case 'baca-notif': await aksiBacaNotif(id); break;
-      case 'edit-profil':modalEditProfil();break;
+      case 'edit-profil': await modalEditProfil();break;
       case 'simpan-profil':{
         const u=DB.pengguna.find(x=>x.id===SESI.id);if(!u)break;
         u.nama=document.getElementById('pf-nama').value.trim()||u.nama;
@@ -1469,7 +1534,7 @@ setTimeout(() => {
         aksiBayarPesanan(id,el.dataset.metode||'va');
         break;
       }
-      case 'konfirmasi-bayar':aksiKonfirmasiBayar();break;
+      case 'konfirmasi-bayar': await aksiKonfirmasiBayar();break;
       case 'terapkan-promo':{
         const kode=(document.getElementById('co-promo').value||'').trim().toUpperCase();
         const info=document.getElementById('co-promo-info');
@@ -1505,23 +1570,23 @@ setTimeout(() => {
     }
   });
 
-  document.addEventListener('submit',e=>{
-    const f=e.target.closest('[data-form]');if(!f)return;e.preventDefault();
-    const j=f.dataset.form;
-    if(j==='masuk')aksiMasuk(f);
-    else if(j==='daftar')aksiDaftar(f);
-  });
+  document.addEventListener('submit', async e=>{
+  const f=e.target.closest('[data-form]');if(!f)return;e.preventDefault();
+  const j=f.dataset.form;
+  if(j==='masuk') await aksiMasuk(f);
+  else if(j==='daftar') await aksiDaftar(f);
+});
 
   document.addEventListener('input',e=>{
     const inp=e.target.closest('[data-cari]');if(!inp)return;
     KATA_CARI=inp.value;
     clearTimeout(CARI_TIMEOUT);
-    CARI_TIMEOUT=setTimeout(()=>{
-      const pos=inp.selectionStart;
-      render();
-      const baru=document.querySelector('[data-cari]');
-      if(baru){baru.focus();try{baru.setSelectionRange(pos,pos)}catch(x){}}
-    },350);
+    CARI_TIMEOUT=setTimeout(async ()=>{
+  const pos=inp.selectionStart;
+  await render();
+  const baru=document.querySelector('[data-cari]');
+  if(baru){baru.focus();try{baru.setSelectionRange(pos,pos)}catch(x){}}
+},350);
   });
 
   document.addEventListener('keydown',e=>{if(e.key==='Escape')tutupModal()});
@@ -1554,18 +1619,6 @@ function bounceKeranjang() {
 }
 
 /* ===== INIT ===== */
-async function muatNotif() {
-  if (!SESI) return;
-  try {
-    const res = await Api.daftarNotifikasi(SESI.peran);
-    DB.notifikasi = DB.notifikasi.filter(n => n.peran !== SESI.peran)
-      .concat((res || []).map(n => ({...n, peran: SESI.peran})));
-    simpanDB();
-  } catch (e) {
-    console.error('Gagal muat notif:', e);
-  }
-}
-
 async function muatNotif() {
   if (!SESI) return;
   try {
